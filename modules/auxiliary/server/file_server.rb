@@ -29,6 +29,7 @@ class Metasploit3 < Msf::Auxiliary
 
 		register_options([
                                 OptString.new('WEBROOT', [ true, 'The location of the exploits directory.', File.join(Msf::Config.install_root, 'data', 'exploits')]),
+                                OptBool.new('ALLOWINDEX', [ false, 'Allow indexes to be displayed.', false]),
 
 		], self.class)
 
@@ -53,11 +54,39 @@ class Metasploit3 < Msf::Auxiliary
 			send_not_found(cli)
 			return false
                 end
-		data = ::File.read(path, ::File.size(path))
-                send_response(cli, data, { 'Content-Type' => 'application/octet-stream' })
-		print_status("Data file #{path} delivered to #{cli.peerhost}")
+		if(::File.directory?(path) and datastore['ALLOWINDEX'])
+			html = "<HTML><BODY>\n"
+			html += "<A HREF=\"#{request.uri}/..\">[..]</A><BR>\n"
+			::Dir.entries(path).each do |file|
+				next if(file.starts_with?'.')
+				if(::File.directory?(::File.join(path,file)))
+					if(request.uri.ends_with?"/")
+						html += "<A HREF=\"#{request.uri}#{file}\">[#{file}]</A><BR>\n"
+					else
+						html += "<A HREF=\"#{request.uri}/#{file}\">[#{file}]</A><BR>\n"
+					end
+				else
+					html += "<A HREF=\"#{request.uri}/#{file}\">#{file}</A><BR>\n"
+				end
+			end
+			html += "</BODY></HTML>\n"
+                        response = create_response()
+                        response["Expires"] = "0"
+                        response["Cache-Control"] = "must-revalidate"
+                        response.body = html
+                        cli.send_response(response)
+			return
+		elsif(::File.directory?(path))
+			print_status("404ing #{request.uri}")
+			send_not_found(cli)
+			return false
+		else
+			data = ::File.read(path, ::File.size(path))
+                	send_response(cli, data, { 'Content-Type' => 'application/octet-stream' })
+			print_status("Data file #{path} delivered to #{cli.peerhost}")
 
-		return 
+			return 
+		end
 
 	end
 
