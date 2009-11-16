@@ -1,6 +1,6 @@
 Index: lib/msf/core/rpc/job.rb
 ===================================================================
---- lib/msf/core/rpc/job.rb	(revision 7316)
+--- lib/msf/core/rpc/job.rb	(revision 7526)
 +++ lib/msf/core/rpc/job.rb	(working copy)
 @@ -22,6 +22,16 @@
  			{ "result" => "success" }
@@ -21,7 +21,7 @@ Index: lib/msf/core/rpc/job.rb
  end
 Index: lib/msf/ui/console/command_dispatcher/core.rb
 ===================================================================
---- lib/msf/ui/console/command_dispatcher/core.rb	(revision 7316)
+--- lib/msf/ui/console/command_dispatcher/core.rb	(revision 7526)
 +++ lib/msf/ui/console/command_dispatcher/core.rb	(working copy)
 @@ -34,6 +34,7 @@
  		"-h" => [ false, "Help banner."                                   ],
@@ -29,9 +29,9 @@ Index: lib/msf/ui/console/command_dispatcher/core.rb
  		"-K" => [ false, "Terminate all running jobs."                    ],
 +		"-i" => [ true, "Lists information about a running job."                    ],
  		"-l" => [ false, "List all running jobs."                         ])
- 	
+ 
  	@@persist_opts = Rex::Parser::Arguments.new(
-@@ -495,7 +496,33 @@
+@@ -535,7 +536,33 @@
  					framework.jobs.each_key do |i|
  						framework.jobs.stop_job(i)
  					end
@@ -67,9 +67,9 @@ Index: lib/msf/ui/console/command_dispatcher/core.rb
  						"Usage: jobs [options]\n\n" +
 Index: lib/rex/job_container.rb
 ===================================================================
---- lib/rex/job_container.rb	(revision 7316)
+--- lib/rex/job_container.rb	(revision 7526)
 +++ lib/rex/job_container.rb	(working copy)
-@@ -60,6 +61,21 @@
+@@ -60,6 +60,28 @@
  	end
  
  	#
@@ -77,12 +77,19 @@ Index: lib/rex/job_container.rb
 +	#
 +	def info
 +		ret = {}
++		con = nil
 +		ret['jid'] = self.jid
 +		ret['name'] = self.name
 +		if(self.ctx.class == Array)
-+			ret['datastore'] = self.ctx[0].datastore
++			con  = self.ctx[0]
++			
 +		else
-+			ret['datastore'] = self.ctx.datastore
++			con = self.ctx
++		end
++		ret['datastore'] = con.datastore
++		if(con.kind_of? Msf::Exploit::Remote::HttpServer)
++			
++			ret['datastore']['URIPATH'] = con.get_resource()
 +		end
 +		ret
 +	end
