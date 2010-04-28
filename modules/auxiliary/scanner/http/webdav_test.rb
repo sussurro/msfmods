@@ -28,7 +28,7 @@ class Metasploit3 < Msf::Auxiliary
 		)
                 register_options(
                         [
-                                OptString.new('PATH', [ true,  "The URI Path", '/vulnerable.asp'])
+                                OptString.new('PATH', [ true,  "The URI Path", '/testpath/'])
 			], self.class)
 
 		
@@ -187,13 +187,13 @@ class Metasploit3 < Msf::Auxiliary
 		print_status("Executable files are: #{executable.join(",")}")
 		report_data = "#{target_host}#{path} allows upload of #{uploadable.join(",")} files and execution of #{executable.join(",")} files";
 				
-					report_note(
-					:host	=> target_host,
-					:proto	=> 'HTTP',
-					:port	=> rport,
-					:type	=> "WRITABLE/EXECUTABLE DAV",
-					:data	=> report_data
-					)
+		report_note(
+			:host	=> target_host,
+			:proto	=> 'HTTP',
+			:port	=> rport,
+			:type	=> "WRITABLE/EXECUTABLE DAV",
+			:data	=> report_data
+		)
 			
 	end
 end
