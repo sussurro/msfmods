@@ -98,12 +98,12 @@ class Metasploit3 < Msf::Auxiliary
 			'asp' => '<html><body><% response.write (!N1! * !N2!) %>',
 			'aspx' => '<html><body><% response.write (!N1! * !N2!) %>',
 			'cfm' => '<cfscript>WriteOutput(!N1!*!N2!);</cfscript>',
-			'cgi' => '#!/usr/bin/perl\nprint "Content-Type: text/html\n\r\n\r" . !N1! * !N2!;',
+			'cgi' => "#!/usr/bin/perl\nprint \"Content-Type: text/html\n\r\n\r\" . !N1! * !N2!;",
 			'html' => '!S1!<br />',
 			'jhtml' => '<%= System.out.println(!N1! * !N2!); %>',
 			'jsp' => '<%= System.out.println(!N1! * !N2!); %>',
 			'php' => '<?php print !N1! * !N2!;?>',
-			'pl' => '#!/usr/bin/perl\nprint "Content-Type: text/html\n\r\n\r" . !N1! * !N2!;',
+			'pl' => "#!/usr/bin/perl\nprint \"Content-Type: text/html\n\r\n\r\" . !N1! * !N2!;",
 			'shtml' => '<!--#echo var="DOCUMENT_URI"--><br /><!--#exec cmd="echo !S1!"-->',
 			'txt' => '!S1!'
 		}
@@ -124,6 +124,7 @@ class Metasploit3 < Msf::Auxiliary
 					answer = Rex::Text.rand_text_alphanumeric(25)
 					payload = payload.gsub("!S1!",answer)
 				end
+				payload += "\n\n"
 				res = send_request_raw({
 					'uri'           => fn,
 					'method'        => 'PUT',
