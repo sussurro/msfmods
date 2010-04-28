@@ -157,9 +157,9 @@ class Metasploit3 < Msf::Auxiliary
 	def run_host(target_host)
 		path = datastore['PATH']
 		if(check_propfind(path))
-			print_status("#{target_host}/#{path} has DAV ENABLED")
+			print_status("#{target_host}#{path} has DAV ENABLED")
 		else
-			print_status("#{target_host}/#{path} has DAV DISABLED")
+			print_status("#{target_host}#{path} has DAV DISABLED")
 			return
 		end
 
@@ -167,9 +167,9 @@ class Metasploit3 < Msf::Auxiliary
 		testdir = path + "WebDavTest_" + randstr
 		print_status("Attempting to create #{testdir}")
 		if(check_createdir(testdir))
-			print_status("#{target_host}/#{path} is WRITEABLE")
+			print_status("#{target_host}#{path} is WRITEABLE")
 		else
-			print_status("#{target_host}/#{path} is NOT WRITEABLE")
+			print_status("#{target_host}#{path} is NOT WRITEABLE")
 			return
 		end
 		results = check_extensions(testdir)
