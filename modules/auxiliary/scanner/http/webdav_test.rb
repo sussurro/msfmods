@@ -40,7 +40,7 @@ class Metasploit3 < Msf::Auxiliary
 			res = send_request_raw({
 				'uri'          => target_url,
 				'method'       => 'PROPFIND',
-                                'headers' => { 'Depth' => 0 }
+                                'headers' => { 'Depth' => 0 , 'Content-Length' => 0}
 			})
 
 			return true if res and res.code == 200
@@ -61,7 +61,8 @@ class Metasploit3 < Msf::Auxiliary
 		begin
 			res = send_request_raw({
 				'uri'          => target_url,
-				'method'       => 'MKCOL'
+				'method'       => 'MKCOL',
+                                'headers' => { 'Content-Length' => 0}
 			})
 
 			return true if res and res.code >= 200 and res.code < 300
@@ -76,7 +77,8 @@ class Metasploit3 < Msf::Auxiliary
 		begin
 			res = send_request_raw({
 				'uri'          => target_url + "/",
-				'method'       => 'DELETE'
+				'method'       => 'DELETE',
+                                'headers' => { 'Content-Length' => 0}
 			})
 
 			return true if res and res.code >= 200 and res.code < 300
