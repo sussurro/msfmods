@@ -21,7 +21,7 @@ class Metasploit3 < Msf::Auxiliary
 	def initialize
 		super(
 			'Name'        => 'HTTP WebDAV Tester',
-			'Version'     => '$$',
+			'Version'     => '$Id$',
 			'Description' => 'Evaluate a path to determine what can be created/uploaded',
 			'Author'       => ['Ryan Linn <sussurro[at]happypacket.net'],
 			'License'     => MSF_LICENSE
