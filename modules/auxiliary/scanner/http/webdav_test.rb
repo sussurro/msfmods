@@ -7,7 +7,6 @@
 
 
 require 'msf/core'
-require 'pp'
 
 
 class Metasploit3 < Msf::Auxiliary
@@ -91,6 +90,8 @@ class Metasploit3 < Msf::Auxiliary
 
 	def check_extensions(target_url)
 		result = []
+		# These checks are based off of Chris Sullo's davtest perl script
+		# that can be found at http://code.google.com/p/davtest
 		checks = {
 			'asp' => '<html><body><% response.write (!N1! * !N2!) %>',
 			'aspx' => '<html><body><% response.write (!N1! * !N2!) %>',
