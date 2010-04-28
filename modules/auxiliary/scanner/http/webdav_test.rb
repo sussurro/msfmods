@@ -130,7 +130,7 @@ class Metasploit3 < Msf::Auxiliary
 					'method'        => 'PUT',
 					'data'		=> payload,
                                 	'headers' => { 'Content-Length' => payload.length }
-				})
+				},5)
 				if(not res or res.code != 201)
 					result << [ext,false,false]
 					next
