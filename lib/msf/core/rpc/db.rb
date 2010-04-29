@@ -6,94 +6,93 @@ class Db < Base
 		@framework.db.active
 	end
 
+	def workspace(wspace = nil)
+	 	if(wspace and wspace != "")
+			return @framework.db.find_workspace(wspace) 
+		end
+		@framework.db.workspace
+	end
+			
+
 	def workspaces(token)
 		authenticate(token)
 		if(not db)
 			raise ::XMLRPC::FaultException.new(404, "database not loaded")
 		end
 		res         = {}
-		res['workspaces'] = {}
+		res[:workspaces] = []
 		@framework.db.workspaces.each do |j|
-			res['workspaces'][j['name']] = {}
-			res['workspaces'][j['name']]['created_at'] = j['created_at'].to_s
-			res['workspaces'][j['name']]['updated_at'] = j['updated_at'].to_s
+			ws = {}
+			ws[:name] = j.name
+			ws[:created_at] = j.created_at.to_s
+			ws[:updated_at] = j.updated_at.to_s
+			res[:workspaces] << ws
 		end
 		res
 	end
 
-	def hosts(token,opts = {})
+	def hosts(token, wspace = nil, only_up = false, host_search = nil)
 		authenticate(token)
-		if(not db)
-			raise ::XMLRPC::FaultException.new(404, "database not loaded")
-		end
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		wspace = workspace(wspace)
+		raise ::XMLRPC::FaultException.new(404, "unknown workspace") if(not wspace)
 		ret = {}
-		ret['hosts'] = []
-		workspace = opts['workspace'] || @framework.db.workspace 
-		only_up = opts['alive'] || true
-		host_search = opts['hostlist'] || nil
+		ret[:hosts] = []
 	
-		@framework.db.hosts(workspace,only_up,host_search).each do |h|
+		@framework.db.hosts(wspace,only_up,host_search).each do |h|
 			host = {}
-			#host['created_at'] = h['created_at'].to_s
-			host['created_at'] = h['created_at'].to_s
-			host['address'] = h['address'].to_s
-			host['address6'] = h['address6'].to_s
-			host['mac'] = h['mac'].to_s
-			host['name'] = h['name'].to_s
-			host['state'] = h['state'].to_s
-			host['os_name'] = h['os_name'].to_s
-			host['os_flavor'] = h['os_flavor'].to_s
-			host['os_sp'] = h['os_sp'].to_s
-			host['os_lang'] = h['os_lang'].to_s
-			host['updated_at'] = h['updated_at'].to_s
-			host['purpose'] = h['purpose'].to_s
-			host['info'] = h['info'].to_s
-			ret['hosts']  << host
+			host[:created_at] = h['created_at'].to_s
+			host[:address] = h['address'].to_s
+			host[:address6] = h['address6'].to_s
+			host[:mac] = h['mac'].to_s
+			host[:name] = h['name'].to_s
+			host[:state] = h['state'].to_s
+			host[:os_name] = h['os_name'].to_s
+			host[:os_flavor] = h['os_flavor'].to_s
+			host[:os_sp] = h['os_sp'].to_s
+			host[:os_lang] = h['os_lang'].to_s
+			host[:updated_at] = h['updated_at'].to_s
+			host[:purpose] = h['purpose'].to_s
+			host[:info] = h['info'].to_s
+			ret[:hosts]  << host
 		end
 		ret
 	end
 	
-	def services(token, opts = {})
+	def services(token, wspace = nil, only_up = false, proto = nil, addresses = nil, ports = nil, names = nil)
 		authenticate(token)
-		if(not db)
-			raise ::XMLRPC::FaultException.new(404, "database not loaded")
-		end
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		wspace = workspace(wspace)
+		raise ::XMLRPC::FaultException.new(404, "unknown workspace") if(not wspace)
 		ret = {}
-		ret['services'] = []
+		ret[:services] = []
 
-		workspace = opts['workspace'] || @framework.db.workspace 
-		only_up = opts['alive'] || true
-		proto = opts['proto'] || nil
-		addresses = opts['addresses'] || nil
-		ports = opts['ports'] || nil
-		names = opts['names'] || nil
 
-		@framework.db.services(workspace,only_up,proto,addresses,ports,names).each do |s|
+		@framework.db.services(wspace,only_up,proto,addresses,ports,names).each do |s|
 			service = {}
 			host = s.host
-			service['host'] = host.address || host.address6 || "unknown"
-			service['created_at'] = s['created_at'].to_s
-			service['updated_at'] = s['updated_at'].to_s
-			service['port'] = s['port']
-			service['proto'] = s['proto'].to_s
-			service['state'] = s['state'].to_s
-			service['name'] = s['name'].to_s
-			service['info'] = s['info'].to_s
-			ret['services'] << service
+			service[:host] = host.address || host.address6 || "unknown"
+			service[:created_at] = s[:created_at].to_s
+			service[:updated_at] = s[:updated_at].to_s
+			service[:port] = s[:port]
+			service[:proto] = s[:proto].to_s
+			service[:state] = s[:state].to_s
+			service[:name] = s[:name].to_s
+			service[:info] = s[:info].to_s
+			ret[:services] << service
 		end
 		ret
 	end	
 
-	def vulns(token,opts = {})
+	def vulns(token,wspace = nil)
 		authenticate(token)
-		if(not db)
-			raise ::XMLRPC::FaultException.new(404, "database not loaded")
-		end
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		wspace = workspace(wspace)
+		raise ::XMLRPC::FaultException.new(404, "unknown workspace") if(not wspace)
 		ret = {}
 		ret['vulns'] = []
-		workspace = opts['workspace'] || @framework.db.workspace 
 		
-		@framework.db.each_vuln(workspace) do |v|
+		@framework.db.each_vuln(wspace) do |v|
 			vuln = {}
 			reflist = v.refs.map { |r| r.name }
 			if(v.service)	
@@ -114,15 +113,15 @@ class Db < Base
 
 	def current_workspace(token)
 		authenticate(token)
-		if(not db)
-			raise ::XMLRPC::FaultException.new(404, "database not loaded")
-		end
-		{ "result" => "success", "workspace" => @framework.db.workspace.name }
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		{ "workspace" => @framework.db.workspace.name }
 
 	end
 
-	#def find_workspace(name)
-	#def add_workspace(name)
+	def workspace_exists(token,wspace)
+	end
+	def add_workspace(token,wspace)
+	end
 	#def get_host(opts)
 	#def find_or_create_host(opts)
 	#def report_host(opts)
