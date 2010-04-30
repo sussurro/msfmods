@@ -229,7 +229,29 @@ class Db < Base
 		ret
 	end
 
-	#def get_client(opts)
+	def get_client(token,opts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		opts[:host] = opts["host"]
+		opts[:ua_string] = opts["ua_string"]
+		ret = {}
+		ret[:client] = []
+		c = @framework.db.get_client(opts)
+		if(c)
+			client = {}
+			host = c.host
+			client[:host] = host.address
+			client[:created_at] = c.created_at.to_s
+			client[:updated_at] = c.updated_at.to_s
+			client[:ua_string] = c.ua_string.to_s
+			client[:ua_name] = c.ua_name.to_s
+			client[:ua_ver] = c.ua_ver.to_s
+			ret[:client] << client
+		end
+		ret
+	end
+
 	#def find_or_create_client(opts)
 	#def report_client(opts)
 	#def each_vuln(wspace=workspace,&block)
