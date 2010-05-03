@@ -14,6 +14,14 @@ class Db < Base
 		end
 		@framework.db.workspace
 	end
+
+	def fixOpts(opts)
+		newopts = {}
+		opts.each do |k,v|
+			newopts[k.to_sym] = v
+		end
+		newopts
+	end
 			
 
 	def workspaces(token)
@@ -43,6 +51,7 @@ class Db < Base
 	
 		@framework.db.hosts(wspace,only_up,host_search).each do |h|
 			host = {}
+			pp h
 			host[:created_at] = h.created_at.to_s
 			host[:address] = h.address.to_s
 			host[:address6] = h.address6.to_s
@@ -144,14 +153,14 @@ class Db < Base
 		{ 'result' => 'failed' }
 	end
 
-	def get_host(token,opts)
+	def get_host(token,xopts)
 		authenticate(token)
 		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
 
 		ret = {}
 		ret[:host] = []
+		opts = fixOpts(xopts)
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
-		opts[:address] = opts["address"] || opts["addr"]
 		h = @framework.db.get_host(opts)
 		if(h)
 			host = {}
@@ -173,47 +182,38 @@ class Db < Base
 		ret	
 	end
 
-	def report_host(token,opts)
+	def report_host(token,xopts)
 		authenticate(token)
 		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
-		opts[:host] = opts["host"]
-		opts[:state] = opts["state"]
-		opts[:os_name] = opts["os_name"]
-		opts[:os_flavor] = opts["os_flavor"]
-		opts[:os_sp] = opts["os_sp"]
-		opts[:os_lang] = opts["os_lang"]
-		opts[:arch] = opts["arch"]
-		opts[:mac] = opts["mac"]
+		pp opts
+
 		res = @framework.db.report_host(opts)
+		pp res
 		return { :result => 'success' } if(res)
 		{ :result => 'failed' }
 		
 	end
 
-	def report_service(token,opts)
+	def report_service(token,xopts)
 		authenticate(token)
 		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
-		opts[:host] = opts["host"]
-		opts[:port] = opts["port"]
-		opts[:proto] = opts["proto"]
-		opts[:host_name] = opts["host_name"]
-		opts[:hmac] = opts["hmac"]
-	
 		res = @framework.db.report_service(opts)
 		return { :result => 'success' } if(res)
 		{ :result => 'failed' }
 	end
 
-	def get_service(token, wspace, host, proto, port)
+	def get_service(token, wspace, xhost, proto, port)
 		authenticate(token)
 		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
 		wspace = workspace(wspace)
 		raise ::XMLRPC::FaultException.new(404, "unknown workspace") if(not wspace)
 		ret = {}
 		ret[:service] = []
-		s = @framework.db.get_service(wspace,host,proto,port)
+		s = @framework.db.get_service(wspace,xhost,proto,port)
 		if(s)
 			service = {}
 			host = s.host
@@ -229,12 +229,11 @@ class Db < Base
 		ret
 	end
 
-	def get_client(token,opts)
+	def get_client(token,xopts)
 		authenticate(token)
 		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
-		opts[:host] = opts["host"]
-		opts[:ua_string] = opts["ua_string"]
 		ret = {}
 		ret[:client] = []
 		c = @framework.db.get_client(opts)
@@ -252,15 +251,78 @@ class Db < Base
 		ret
 	end
 
-	#def find_or_create_client(opts)
-	#def report_client(opts)
-	#def each_vuln(wspace=workspace,&block)
-	#def each_note(wspace=workspace, &block)
-	#def find_or_create_note(opts)
-	#def report_note(opts)
-	#def notes(wspace=workspace)
-	#def report_auth_info(opts={})
-	#def get_auth_info(opts={})
+	def report_client(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		res = @framework.db.report_client(opts)
+		return { :result => 'success' } if(res)
+		{ :result => 'failed' }
+	end
+
+	#DOC NOTE: :data and :ntype are REQUIRED
+	def report_note(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		res = @framework.db.report_note(opts)
+		return { :result => 'success' } if(res)
+		{ :result => 'failed' }
+	end
+
+	def notes(token,wspace = nil)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		wspace = workspace(wspace)
+		raise ::XMLRPC::FaultException.new(404, "unknown workspace") if(not wspace)
+		ret = {}
+		ret[:notes] = []
+
+		@framework.db.notes(wspace).each do |n|
+			note = {}
+			note[:time] = n.created_at.to_s
+			note[:host] = ""
+			note[:service] = ""
+			note[:host] = n.host.address || n.host.address6 if(n.host)
+			note[:service] = n.service.name if(n.service)
+			note[:type ] = n.ntype.to_s
+			note[:data] = n.data.inspect
+			ret[:notes] << note
+		end
+		ret
+	end
+
+	def report_auth_info(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		res = @framework.db.report_auth_info(opts)
+		return { :result => 'success' } if(res)
+		{ :result => 'failed' }
+	end
+
+	def get_auth_info(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		ret = {}
+		ret[:auth_info] = []
+		pp opts
+		ai = @framework.db.get_auth_info(opts)
+		pp ai
+		ai.each do |i|
+			info = {}
+			i.each do |k,v|
+				info[k.to_sym] = v
+			end
+			ret[:auth_info] << info	
+		end
+		ret
+	end
 	#def find_or_create_vuln(opts)
 	#def report_vuln(opts)
 	#def get_vuln(wspace, host, service, name, data='')
