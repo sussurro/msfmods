@@ -51,7 +51,6 @@ class Db < Base
 	
 		@framework.db.hosts(wspace,only_up,host_search).each do |h|
 			host = {}
-			pp h
 			host[:created_at] = h.created_at.to_s
 			host[:address] = h.address.to_s
 			host[:address6] = h.address6.to_s
@@ -286,7 +285,7 @@ class Db < Base
 			note[:host] = ""
 			note[:service] = ""
 			note[:host] = n.host.address || n.host.address6 if(n.host)
-			note[:service] = n.service.name if(n.service)
+			note[:service] = n.service.name || n.service.port  if(n.service)
 			note[:type ] = n.ntype.to_s
 			note[:data] = n.data.inspect
 			ret[:notes] << note
@@ -323,33 +322,198 @@ class Db < Base
 		end
 		ret
 	end
-	#def find_or_create_vuln(opts)
-	#def report_vuln(opts)
+	def report_vuln(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		res = @framework.db.report_auth_info(opts)
+		return { :result => 'success' } if(res)
+		{ :result => 'failed' }
+	end
+
 	#def get_vuln(wspace, host, service, name, data='')
-	#def find_or_create_ref(opts)
-	#def get_ref(name)
-	#def del_host(wspace, address, comm='')
-	#def del_service(wspace, address, proto, port, comm='')
-	#def has_ref?(name)
-	#def has_vuln?(name)
-	#def has_host?(wspace,addr)
-	#def events(wspace=workspace)
-	#def report_event(opts = {})
-	#def each_loot(wspace=workspace, &block)
-	#def find_or_create_loot(opts)
-	#def report_loot(opts)
-	#def loots(wspace=workspace)
-	#def import_msfe_v1_xml(data, wspace=workspace)
-	#def import_nexpose_simplexml(data, wspace=workspace)
-	#def import_nexpose_rawxml(data, wspace=workspace)
-	#def import_nmap_xml(data, wspace=workspace)
-	#def import_nessus_nbe(data, wspace=workspace)
-	#def import_openvas_xml(filename)
-	#def import_nessus_xml(data, wspace=workspace)
-	#def import_nessus_xml_v2(data, wspace=workspace)
-	#def import_qualys_xml(data, wspace=workspace)
-	#def import_ip_list(data, wspace)
-	#def import_amap_mlog(data, wspace)
+
+	def get_ref(token,name)
+		authenticate(token)
+		return @framework.db.get_ref(name)
+	end
+
+	def del_host(token,wspace = nil, address, comm='')
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		wspace = workspace(wspace)
+		@framework.db.del_host(wspace,address,comm)
+		return { :result => 'success' } 
+		
+	end
+
+	def del_service(token,wspace = nil, address, proto, port, comm='')
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		wspace = workspace(wspace)
+		@framework.db.del_service(wspace,address,proto,port,comm)
+		return { :result => 'success' } 
+	end
+
+
+	def report_auth_info(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		res = @framework.db.report_auth_info(opts)
+		return { :result => 'success' } if(res)
+		{ :result => 'failed' }
+	end
+
+	def get_auth_info(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		ret = {}
+		ret[:auth_info] = []
+		pp opts
+		ai = @framework.db.get_auth_info(opts)
+		pp ai
+		ai.each do |i|
+			info = {}
+			i.each do |k,v|
+				info[k.to_sym] = v
+			end
+			ret[:auth_info] << info	
+		end
+		ret
+	end
+	def report_vuln(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		res = @framework.db.report_auth_info(opts)
+		return { :result => 'success' } if(res)
+		{ :result => 'failed' }
+	end
+
+	#def get_vuln(wspace, host, service, name, data='')
+
+	def get_ref(token,name)
+		authenticate(token)
+		return @framework.db.get_ref(name)
+	end
+
+	def del_host(token,wspace = nil, address, comm='')
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		wspace = workspace(wspace)
+		@framework.db.del_host(wspace,address,comm)
+		return { :result => 'success' } 
+		
+	end
+
+	def del_service(token,wspace = nil, address, proto, port, comm='')
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		wspace = workspace(wspace)
+		@framework.db.del_service(wspace,address,proto,port,comm)
+		return { :result => 'success' } 
+	end
+
+	def events(token,wspace = nil)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		wspace = workspace(wspace)
+		raise ::XMLRPC::FaultException.new(404, "unknown workspace") if(not wspace)
+		ret = {}
+		ret[:events] = []
+
+		@framework.db.events(wspace).each do |e|
+			event = {}
+			event[:host] = e.host.address || e.host.address6 if(e.host)
+			event[:created_at] = e.created_at
+			event[:updated_at] = e.updated_at
+			event[:name] = e.name
+			event[:critical] = e.critical if(e.critical)	
+			event[:username] = e.critical if(e.username)	
+			event[:info] = e.info
+			ret[:events] << event
+		end
+		ret
+	end
+	def report_event(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		res = @framework.db.report_event(opts)
+		return { :result => 'success' } if(res)
+	end
+
+	#NOTE Path is required
+	#NOTE To match a service need host, port, proto
+	def report_loot(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		if opts[:host] && opts[:port] && opts[:proto]
+			opts[:service] = @framework.db.find_or_create_service(opts)
+		end
+
+		ret = @framework.db.report_loot(opts)
+		return { :result => 'success' } if(res)
+	end
+
+	def loots(token,wspace=nil)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		wspace = workspace(wspace)
+		raise ::XMLRPC::FaultException.new(404, "unknown workspace") if(not wspace)
+		ret = {}
+		ret[:loots] = []
+		@framework.db.loots(wspace).each do |l|
+			loot = {}
+			loot[:host] = l.host.address || l.host.address6 if(l.host)
+			loot[:service] = l.service.name || n.service.port  if(n.service)
+			loot[:ltype] = l.ltype
+			loot[:ctype] = l.ctype
+			loot[:data] = l.data
+			loot[:created_at] = l.created_at
+			loot[:updated_at] = l.updated_at
+			loot[:name] = l.name
+			loot[:info] = l.info
+			ret[:loots] << loot
+		end
+		ret
+	end
+	#def import_file(args={}, &block)
+	#def import(args={}, &block)
+	#def import_filetype_detect(data)
+	#def import_nexpose_simplexml_file(args={})
+	#def import_msfe_file(args={})
+	#def import_msfx_zip(args={}, &block)
+	#def import_msfx_collateral(args={}, &block)
+	#def import_msfe_xml(args={}, &block)
+	#def import_nexpose_simplexml(args={}, &block)
+	#def import_nexpose_rawxml_file(args={})
+	#def import_nexpose_rawxml(args={}, &block)
+	#def import_nmap_xml_file(args={})
+	#def import_nmap_xml(args={}, &block)
+	#def import_nessus_nbe_file(args={})
+	#def import_nessus_nbe(args={}, &block)
+	#def import_openvas_xml(args={}, &block)
+	#def import_nessus_xml_file(args={})
+	#def import_nessus_xml(args={}, &block)
+	#def import_nessus_xml_v2(args={}, &block)
+	#def import_qualys_xml_file(args={})
+	#def import_qualys_xml(args={}, &block)
+	#def import_ip_list_file(args={})
+	#def import_ip_list(args={}, &block)
+	#def import_amap_log_file(args={})
+	#def import_amap_log(args={}, &block)
+	#def import_amap_mlog(args={}, &block)
+
+
 end
 end
 end
