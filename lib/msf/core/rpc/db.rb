@@ -322,15 +322,6 @@ class Db < Base
 		end
 		ret
 	end
-	def report_vuln(token,xopts)
-		authenticate(token)
-		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
-		opts = fixOpts(xopts)
-		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
-		res = @framework.db.report_auth_info(opts)
-		return { :result => 'success' } if(res)
-		{ :result => 'failed' }
-	end
 
 	#def get_vuln(wspace, host, service, name, data='')
 
@@ -339,7 +330,7 @@ class Db < Base
 		return @framework.db.get_ref(name)
 	end
 
-	def del_host(token,wspace = nil, address, comm='')
+	def del_host(token,wspace = nil,address = nil , comm='')
 		authenticate(token)
 		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
 		wspace = workspace(wspace)
@@ -348,7 +339,7 @@ class Db < Base
 		
 	end
 
-	def del_service(token,wspace = nil, address, proto, port, comm='')
+	def del_service(token,wspace = nil, address = nil, proto = nil , port = nil, comm='')
 		authenticate(token)
 		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
 		wspace = workspace(wspace)
@@ -357,68 +348,16 @@ class Db < Base
 	end
 
 
-	def report_auth_info(token,xopts)
-		authenticate(token)
-		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
-		opts = fixOpts(xopts)
-		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
-		res = @framework.db.report_auth_info(opts)
-		return { :result => 'success' } if(res)
-		{ :result => 'failed' }
-	end
-
-	def get_auth_info(token,xopts)
-		authenticate(token)
-		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
-		opts = fixOpts(xopts)
-		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
-		ret = {}
-		ret[:auth_info] = []
-		pp opts
-		ai = @framework.db.get_auth_info(opts)
-		pp ai
-		ai.each do |i|
-			info = {}
-			i.each do |k,v|
-				info[k.to_sym] = v
-			end
-			ret[:auth_info] << info	
-		end
-		ret
-	end
 	def report_vuln(token,xopts)
 		authenticate(token)
 		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
 		opts = fixOpts(xopts)
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
-		res = @framework.db.report_auth_info(opts)
+		res = @framework.db.report_vuln(opts)
 		return { :result => 'success' } if(res)
 		{ :result => 'failed' }
 	end
 
-	#def get_vuln(wspace, host, service, name, data='')
-
-	def get_ref(token,name)
-		authenticate(token)
-		return @framework.db.get_ref(name)
-	end
-
-	def del_host(token,wspace = nil, address, comm='')
-		authenticate(token)
-		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
-		wspace = workspace(wspace)
-		@framework.db.del_host(wspace,address,comm)
-		return { :result => 'success' } 
-		
-	end
-
-	def del_service(token,wspace = nil, address, proto, port, comm='')
-		authenticate(token)
-		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
-		wspace = workspace(wspace)
-		@framework.db.del_service(wspace,address,proto,port,comm)
-		return { :result => 'success' } 
-	end
 
 	def events(token,wspace = nil)
 		authenticate(token)
@@ -486,32 +425,114 @@ class Db < Base
 		end
 		ret
 	end
-	#def import_file(args={}, &block)
-	#def import(args={}, &block)
-	#def import_filetype_detect(data)
-	#def import_nexpose_simplexml_file(args={})
-	#def import_msfe_file(args={})
-	#def import_msfx_zip(args={}, &block)
-	#def import_msfx_collateral(args={}, &block)
-	#def import_msfe_xml(args={}, &block)
-	#def import_nexpose_simplexml(args={}, &block)
-	#def import_nexpose_rawxml_file(args={})
-	#def import_nexpose_rawxml(args={}, &block)
-	#def import_nmap_xml_file(args={})
-	#def import_nmap_xml(args={}, &block)
-	#def import_nessus_nbe_file(args={})
-	#def import_nessus_nbe(args={}, &block)
-	#def import_openvas_xml(args={}, &block)
-	#def import_nessus_xml_file(args={})
-	#def import_nessus_xml(args={}, &block)
-	#def import_nessus_xml_v2(args={}, &block)
-	#def import_qualys_xml_file(args={})
-	#def import_qualys_xml(args={}, &block)
-	#def import_ip_list_file(args={})
-	#def import_ip_list(args={}, &block)
-	#def import_amap_log_file(args={})
-	#def import_amap_log(args={}, &block)
-	#def import_amap_mlog(args={}, &block)
+	def import(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		opts[:data] = Rex::Text.decode_base64(opts[:data])
+		@framework.db.import(opts)
+		return { :result => 'success' } if(res)
+	end
+	def import_msfe_xml(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		opts[:data] = Rex::Text.decode_base64(opts[:data])
+		@framework.db.import_msfe_xml(opts)
+		return { :result => 'success' } if(res)
+	end
+	def import_nexpose_simplexml(args={}, &block)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		opts[:data] = Rex::Text.decode_base64(opts[:data])
+		@framework.db.import_nexpose_simplexml(opts)
+		return { :result => 'success' } if(res)
+	end
+	def import_nexpose_rawxml(args={}, &block)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		opts[:data] = Rex::Text.decode_base64(opts[:data])
+		@framework.db.import_nexpose_rawxml(opts)
+		return { :result => 'success' } if(res)
+	end
+	def import_nmap_xml(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		opts[:data] = Rex::Text.decode_base64(opts[:data])
+		@framework.db.import_nmap_xml(opts)
+		return { :result => 'success' } if(res)
+	end
+	def import_nessus_nbe(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		opts[:data] = Rex::Text.decode_base64(opts[:data])
+		@framework.db.import_nessus_nbe(opts)
+		return { :result => 'success' } if(res)
+	end
+	def import_nessus_xml(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		opts[:data] = Rex::Text.decode_base64(opts[:data])
+		@framework.db.import_nessus_xml(opts)
+		return { :result => 'success' } if(res)
+	end
+	def import_nessus_xml_v2(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		opts[:data] = Rex::Text.decode_base64(opts[:data])
+		@framework.db.import_nessus_xml_v2(opts)
+		return { :result => 'success' } if(res)
+	end
+	def import_qualys_xml(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		opts[:data] = Rex::Text.decode_base64(opts[:data])
+		@framework.db.import_qualys_xml(opts)
+		return { :result => 'success' } if(res)
+	end
+	def import_ip_list(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		opts[:data] = Rex::Text.decode_base64(opts[:data])
+		@framework.db.import_ip_list(opts)
+		return { :result => 'success' } if(res)
+	end
+	def import_amap_log(args={}, &block)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		opts[:data] = Rex::Text.decode_base64(opts[:data])
+		@framework.db.import_nexpose_rawxml(opts)
+		return { :result => 'success' } if(res)
+	end
+	def import_amap_mlog(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		opts[:data] = Rex::Text.decode_base64(opts[:data])
+		@framework.db.import_amap_mlog(opts)
+		return { :result => 'success' } if(res)
+	end
 
 
 end
