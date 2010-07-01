@@ -399,8 +399,9 @@ class Db < Base
 			opts[:service] = @framework.db.find_or_create_service(opts)
 		end
 
-		ret = @framework.db.report_loot(opts)
+		res = @framework.db.report_loot(opts)
 		return { :result => 'success' } if(res)
+		return { :result => 'failed' } 
 	end
 
 	def loots(token,wspace=nil)
@@ -425,14 +426,14 @@ class Db < Base
 		end
 		ret
 	end
-	def import(token,xopts)
+	def import_data(token,xopts)
 		authenticate(token)
 		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
 		opts = fixOpts(xopts)
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
 		opts[:data] = Rex::Text.decode_base64(opts[:data])
 		@framework.db.import(opts)
-		return { :result => 'success' } if(res)
+		return { :result => 'success' }
 	end
 	def import_msfe_xml(token,xopts)
 		authenticate(token)
@@ -441,7 +442,7 @@ class Db < Base
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
 		opts[:data] = Rex::Text.decode_base64(opts[:data])
 		@framework.db.import_msfe_xml(opts)
-		return { :result => 'success' } if(res)
+		return { :result => 'success' }
 	end
 	def import_nexpose_simplexml(args={}, &block)
 		authenticate(token)
@@ -450,7 +451,7 @@ class Db < Base
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
 		opts[:data] = Rex::Text.decode_base64(opts[:data])
 		@framework.db.import_nexpose_simplexml(opts)
-		return { :result => 'success' } if(res)
+		return { :result => 'success' }
 	end
 	def import_nexpose_rawxml(args={}, &block)
 		authenticate(token)
@@ -459,7 +460,7 @@ class Db < Base
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
 		opts[:data] = Rex::Text.decode_base64(opts[:data])
 		@framework.db.import_nexpose_rawxml(opts)
-		return { :result => 'success' } if(res)
+		return { :result => 'success' }
 	end
 	def import_nmap_xml(token,xopts)
 		authenticate(token)
@@ -468,7 +469,7 @@ class Db < Base
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
 		opts[:data] = Rex::Text.decode_base64(opts[:data])
 		@framework.db.import_nmap_xml(opts)
-		return { :result => 'success' } if(res)
+		return { :result => 'success' } 
 	end
 	def import_nessus_nbe(token,xopts)
 		authenticate(token)
@@ -477,7 +478,7 @@ class Db < Base
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
 		opts[:data] = Rex::Text.decode_base64(opts[:data])
 		@framework.db.import_nessus_nbe(opts)
-		return { :result => 'success' } if(res)
+		return { :result => 'success' }
 	end
 	def import_nessus_xml(token,xopts)
 		authenticate(token)
@@ -486,7 +487,7 @@ class Db < Base
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
 		opts[:data] = Rex::Text.decode_base64(opts[:data])
 		@framework.db.import_nessus_xml(opts)
-		return { :result => 'success' } if(res)
+		return { :result => 'success' }
 	end
 	def import_nessus_xml_v2(token,xopts)
 		authenticate(token)
@@ -495,7 +496,7 @@ class Db < Base
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
 		opts[:data] = Rex::Text.decode_base64(opts[:data])
 		@framework.db.import_nessus_xml_v2(opts)
-		return { :result => 'success' } if(res)
+		return { :result => 'success' }
 	end
 	def import_qualys_xml(token,xopts)
 		authenticate(token)
@@ -504,7 +505,7 @@ class Db < Base
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
 		opts[:data] = Rex::Text.decode_base64(opts[:data])
 		@framework.db.import_qualys_xml(opts)
-		return { :result => 'success' } if(res)
+		return { :result => 'success' }
 	end
 	def import_ip_list(token,xopts)
 		authenticate(token)
@@ -513,7 +514,7 @@ class Db < Base
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
 		opts[:data] = Rex::Text.decode_base64(opts[:data])
 		@framework.db.import_ip_list(opts)
-		return { :result => 'success' } if(res)
+		return { :result => 'success' }
 	end
 	def import_amap_log(args={}, &block)
 		authenticate(token)
@@ -522,7 +523,7 @@ class Db < Base
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
 		opts[:data] = Rex::Text.decode_base64(opts[:data])
 		@framework.db.import_nexpose_rawxml(opts)
-		return { :result => 'success' } if(res)
+		return { :result => 'success' }
 	end
 	def import_amap_mlog(token,xopts)
 		authenticate(token)
@@ -531,7 +532,7 @@ class Db < Base
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
 		opts[:data] = Rex::Text.decode_base64(opts[:data])
 		@framework.db.import_amap_mlog(opts)
-		return { :result => 'success' } if(res)
+		return { :result => 'success' } 
 	end
 
 
