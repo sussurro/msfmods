@@ -205,15 +205,30 @@ class Db < Base
 		{ :result => 'failed' }
 	end
 
-	def get_service(token, wspace, xhost, proto, port)
+	def get_service(token,xopts)
 		authenticate(token)
 		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
-		wspace = workspace(wspace)
-		raise ::XMLRPC::FaultException.new(404, "unknown workspace") if(not wspace)
+
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+
 		ret = {}
 		ret[:service] = []
-		s = @framework.db.get_service(wspace,xhost,proto,port)
-		if(s)
+
+                host = @framework.db.get_host(opts)
+
+                return ret if( not host)
+		services = nil
+
+		if(opts[:proto] && opts[:port])
+                	services = host.services.find_by_proto_and_port(proto, port)
+		else
+			services = host.services
+		end
+
+		return ret if (not services)
+		
+		services.each do |s|
 			service = {}
 			host = s.host
 			service[:host] = host.address || host.address6 || "unknown"
@@ -223,7 +238,54 @@ class Db < Base
 			service[:proto] = s[:proto].to_s
 			service[:state] = s[:state].to_s
 			service[:name] = s[:name].to_s
+			service[:info] = s[:info].to_s
 			ret[:service] << service
+		end
+		ret
+	end
+
+	def get_note(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+
+		ret = {}
+		ret[:note] = []
+
+                host = @framework.db.get_host(opts)
+
+                return ret if( not host)
+		notes = nil
+
+		if(opts[:proto] && opts[:port])
+                	services = host.services.find_by_proto_and_port(proto, port)
+			notes = []
+			services.each do |s|
+				notes |= s.notes
+			end
+		else
+			notes = host.notes
+		end
+
+		return ret if (not notes)
+		
+		notes.each do |n|
+			note = {}
+			host = n.host
+			note[:host] = host.address || host.address6 || "unknown"
+			if n.service
+				note[:port] = n.service.port
+				note[:proto] = n.service.proto
+			end
+			note[:created_at] = n[:created_at].to_s
+			note[:updated_at] = n[:updated_at].to_s
+			note[:ntype] = n[:ntype].to_s
+			note[:data] = n[:data]
+			note[:critical] = n[:critical].to_s
+			note[:seen] = n[:seen].to_s
+			ret[:note] << note
 		end
 		ret
 	end
@@ -310,9 +372,7 @@ class Db < Base
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
 		ret = {}
 		ret[:auth_info] = []
-		pp opts
 		ai = @framework.db.get_auth_info(opts)
-		pp ai
 		ai.each do |i|
 			info = {}
 			i.each do |k,v|
@@ -399,9 +459,8 @@ class Db < Base
 			opts[:service] = @framework.db.find_or_create_service(opts)
 		end
 
-		res = @framework.db.report_loot(opts)
+		ret = @framework.db.report_loot(opts)
 		return { :result => 'success' } if(res)
-		return { :result => 'failed' } 
 	end
 
 	def loots(token,wspace=nil)
@@ -469,7 +528,7 @@ class Db < Base
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
 		opts[:data] = Rex::Text.decode_base64(opts[:data])
 		@framework.db.import_nmap_xml(opts)
-		return { :result => 'success' } 
+		return { :result => 'success' }
 	end
 	def import_nessus_nbe(token,xopts)
 		authenticate(token)
@@ -532,9 +591,56 @@ class Db < Base
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
 		opts[:data] = Rex::Text.decode_base64(opts[:data])
 		@framework.db.import_amap_mlog(opts)
-		return { :result => 'success' } 
+		return { :result => 'success' }
 	end
 
+	def get_vuln(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+
+		opts = fixOpts(xopts)
+		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+
+		ret = {}
+		ret[:vuln] = []
+
+                host = @framework.db.get_host(opts)
+
+                return ret if( not host)
+		vulns = nil
+
+		if(opts[:proto] && opts[:port])
+                	services = host.services.find_by_proto_and_port(proto, port)
+			notes = []
+			services.each do |s|
+				vulns |= s.vulns
+			end
+		else
+			vulns = host.vulns
+		end
+
+		return ret if (not vulns)
+		
+		vulns.each do |v|
+			vuln= {}
+			host= v.host
+			vuln[:host] = host.address || host.address6 || "unknown"
+			if v.service
+				vuln[:port] = v.service.port
+				vuln[:proto] = v.service.proto
+			end
+			vuln[:created_at] = v[:created_at].to_s
+			vuln[:updated_at] = v[:updated_at].to_s
+			vuln[:name] = v[:name].to_s
+			vuln[:info] = v[:info].to_s
+			vuln[:refs] = []
+			v.refs.each do |r|
+				vuln[:refs] << r.name
+			end	
+			ret[:vuln] << vuln
+		end
+		ret
+	end
 
 end
 end
