@@ -1,0 +1,165 @@
+Index: lib/msf/core/encoded_payload.rb
+===================================================================
+--- lib/msf/core/encoded_payload.rb	(revision 9913)
++++ lib/msf/core/encoded_payload.rb	(working copy)
+@@ -45,6 +45,7 @@
+ 		self.nop_sled      = nil
+ 		self.encoder       = nil
+ 		self.nop           = nil
++		self.iterations    = (reqs['Iterations'].to_i || 1)
+ 
+ 		# Increase thread priority as necessary.  This is done
+ 		# to ensure that the encoding and sled generation get
+@@ -152,35 +153,40 @@
+ 					
+ 					next
+ 				end
+-		
+-				# Try encoding with the current encoder
+-				begin
+-					self.encoded = self.encoder.encode(self.raw, reqs['BadChars'], nil, pinst.platform)
+-				rescue EncodingError
+-					wlog("#{pinst.refname}: Encoder #{encoder.refname} failed: #{$!}", 'core', LEV_1)
+-					dlog("#{pinst.refname}: Call stack\n#{$@.join("\n")}", 'core', LEV_3)
+-					next
+-				rescue ::Exception
+-					elog("#{pinst.refname}: Broken encoder #{encoder.refname}: #{$!}", 'core', LEV_0)
+-					dlog("#{pinst.refname}: Call stack\n#{$@.join("\n")}", 'core', LEV_1)
+-					next
+-				end
+-
+-				# Get the minimum number of nops to use
+-				min = (reqs['MinNops'] || 0).to_i
+-				min = 0 if reqs['DisableNops']
+ 				
+-				# Check to see if we have enough room for the minimum requirements
+-				if ((reqs['Space']) and (reqs['Space'] < self.encoded.length + min))
+-					wlog("#{pinst.refname}: Encoded payload version is too large with encoder #{encoder.refname}",
+-						'core', LEV_1)
++				eout = self.raw.dup
+ 
+-					next
++				# Try encoding with the current encoder
++				1.upto(self.iterations) do |iter|
++					begin
++						eout = self.encoder.encode(eout, reqs['BadChars'], nil, pinst.platform)
++					rescue EncodingError
++						wlog("#{pinst.refname}: Encoder #{encoder.refname} failed: #{$!}", 'core', LEV_1)
++						dlog("#{pinst.refname}: Call stack\n#{$@.join("\n")}", 'core', LEV_3)
++						next
++					rescue ::Exception
++						elog("#{pinst.refname}: Broken encoder #{encoder.refname}: #{$!}", 'core', LEV_0)
++						dlog("#{pinst.refname}: Call stack\n#{$@.join("\n")}", 'core', LEV_1)
++						next
++					end
++	
++					# Get the minimum number of nops to use
++					min = (reqs['MinNops'] || 0).to_i
++					min = 0 if reqs['DisableNops']
++					
++					# Check to see if we have enough room for the minimum requirements
++					if ((reqs['Space']) and (reqs['Space'] < eout.length + min))
++						wlog("#{pinst.refname}: Encoded payload version is too large with encoder #{encoder.refname}",
++							'core', LEV_1)
++	
++						next
++					end
++	
++					ilog("#{pinst.refname}: Successfully encoded with encoder #{encoder.refname} (size is #{eout.length} on iteration #{iter})",
++					 'core', LEV_0)
++	
+ 				end
+-
+-				ilog("#{pinst.refname}: Successfully encoded with encoder #{encoder.refname} (size is #{self.encoded.length})",
+-					 'core', LEV_0)
+-
++				self.encoded = eout
+ 				break
+ 			}
+ 			
+@@ -305,6 +311,10 @@
+ 	# The NOP generator that was used
+ 	#
+ 	attr_reader :nop
++	#
++	# The number of encoding iteartions used
++	#
++	attr_reader :iterations
+ 
+ protected
+ 
+@@ -315,6 +325,7 @@
+ 	attr_writer :payload # :nodoc:
+ 	attr_writer :encoder # :nodoc:
+ 	attr_writer :nop # :nodoc:
++	attr_writer :iterations # :nodoc:
+ 
+ 	#
+ 	# The payload instance used to generate the payload
+Index: lib/msf/base/simple/payload.rb
+===================================================================
+--- lib/msf/base/simple/payload.rb	(revision 9913)
++++ lib/msf/base/simple/payload.rb	(working copy)
+@@ -44,6 +44,7 @@
+ 				'BadChars' => opts['BadChars'],
+ 				'MinNops'  => opts['NopSledSize'],
+ 				'Encoder'  => opts['Encoder'],
++				'Iterations'  => opts['Iterations'],
+ 				'Space'    => opts['MaxSize'])
+ 
+ 		fmt = opts['Format'] || 'raw'
+@@ -95,4 +96,4 @@
+ end
+ 
+ end
+-end
+\ No newline at end of file
++end
+Index: lib/msf/ui/console/command_dispatcher/payload.rb
+===================================================================
+--- lib/msf/ui/console/command_dispatcher/payload.rb	(revision 9913)
++++ lib/msf/ui/console/command_dispatcher/payload.rb	(working copy)
+@@ -21,7 +21,8 @@
+ 		"-o" => [ true,  "A comma separated list of options in VAR=VAL format." ],
+ 		"-s" => [ true,  "NOP sled length."                                     ],
+ 		"-f" => [ true,  "The output file name (otherwise stdout)"              ],
+-		"-t" => [ true,  "The output type: ruby, perl, c, or raw."              ])
++		"-t" => [ true,  "The output type: ruby, perl, c, or raw."              ],
++		"-i" => [ true,  "the number of encoding iterations."              ])
+ 
+ 	#
+ 	# Returns the hash of commands specific to payload modules.
+@@ -51,6 +52,7 @@
+ 		badchars     = nil
+ 		type         = "ruby"
+ 		ofile        = nil
++		iter         = 1
+ 		
+ 		@@generate_opts.parse(args) { |opt, idx, val|
+ 			case opt
+@@ -66,6 +68,8 @@
+ 					type = val
+ 				when '-f'
+ 					ofile = val
++				when '-i'
++					iter = val
+ 				when '-h'
+ 					print(
+ 						"Usage: generate [options]\n\n" +
+@@ -86,7 +90,8 @@
+ 				'Encoder'     => encoder_name,
+ 				'Format'      => type,
+ 				'NopSledSize' => sled_size,
+-				'OptionStr'   => option_str)
++				'OptionStr'   => option_str,
++				'Iterations'  => iter)
+ 		rescue
+ 			log_error("Payload generation failed: #{$!}")
+ 			return false
+@@ -108,4 +113,4 @@
+ 
+ end
+ 
+-end end end end
+\ No newline at end of file
++end end end end
