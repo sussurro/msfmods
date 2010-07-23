@@ -67,12 +67,6 @@ for note in notes:
 	if note['host']:
 		notes_by_host.setdefault(note['host'],[]).append(note)
 
-#print services_by_host
-#pprint.pprint(services_by_host)
-#pprint.pprint(services)
-#pprint.pprint(services)
-#pprint.pprint(notes)
-
 # Create a list of (host_addr_as_tuple, host)
 # where host_addr_as_tuple is e.g. (192,168,1,1)
 # for the purpose of sorting results
