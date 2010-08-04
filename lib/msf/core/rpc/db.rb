@@ -210,18 +210,25 @@ class Db < Base
 		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
 
 		opts = fixOpts(xopts)
-		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		wspace = workspace(opts[:workspace])
+		opts[:workspace] = wspace if opts[:workspace]
 
 		ret = {}
 		ret[:service] = []
 
                 host = @framework.db.get_host(opts)
 
-                return ret if( not host)
 		services = nil
 
-		if(opts[:proto] && opts[:port])
+		if(host && opts[:proto] && opts[:port])
                 	services = host.services.find_by_proto_and_port(proto, port)
+		elsif(opts[:proto] && opts[:port])
+	                conditions = {}
+                	conditions[:state] = [ServiceState::Open] if opts[:up]
+                	conditions[:proto] = opts[:proto] if opts[:proto]
+                	conditions[:port] = opts[:port] if opts[:port]
+                	conditions[:name] = opts[:names] if opts[:names]
+			services = wspace.services.all(:conditions => conditions, :order => "hosts.address, port")
 		else
 			services = host.services
 		end
