@@ -100,11 +100,15 @@ class Db < Base
 		services = []
 		if opts[:host] || opts[:address] || opts[:addresses]
 			hosts.each do |host|
+				sret = nil
 				if(opts[:proto] && opts[:port])
-                			services |= host.services.find_by_proto_and_port(opts[:proto], opts[:port])
+                			sret = host.services.find_by_proto_and_port(opts[:proto], opts[:port])
 				else
-                			services |= host.services
+                			sret = host.services
 				end
+				next if sret == nil
+				services << sret if sret.class == Msf::DBManager::Service
+				services |= sret if sret.class == Array
 			end
 		else
 			services = wspace.services
@@ -154,15 +158,78 @@ class Db < Base
 		ret
 	end	
 
-	def vulns(token,wspace = nil)
+	def vulns(token,xopts)
 		authenticate(token)
 		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
-		wspace = workspace(wspace)
-		raise ::XMLRPC::FaultException.new(404, "unknown workspace") if(not wspace)
+
+		opts = fixOpts(xopts)
+		wspace = workspace(opts[:workspace])
+		opts[:workspace] = wspace if opts[:workspace]
+
 		ret = {}
 		ret[:vulns] = []
+		hosts = []
+		services = []
+		vulns = []
+		# Get Matching Hosts
+		if opts[:addresses]
+			conditions = {}
+                	conditions[:address] = opts[:addresses] if opts[:addresses]
+                	hosts = wspace.hosts.all(:conditions => conditions, :order => :address)
+		elsif opts[:host] || opts[:address]
+                	host = @framework.db.get_host(opts)
+			hosts << host
+		end
+
+		#Get Matching Services
+		if opts[:host] || opts[:address] || opts[:addresses]
+			hosts.each do |host|
+				sret = nil
+				if(opts[:proto] && opts[:port])
+                			sret = host.services.find_by_proto_and_port(opts[:proto], opts[:port])
+				else
+                			sret = host.services
+				end
+				next if sret == nil
+				services << sret if sret.class == Msf::DBManager::Service
+				services |= sret if sret.class == Array
+			end
+		elsif opts[:port] && opts[:proto]
+			sret = wspace.services.find_by_proto_and_port(opts[:proto],opts[:port])
+			services << sret if sret.class == Msf::DBManager::Service
+			services |= sret if sret.class == Array
+		end
 		
-		@framework.db.each_vuln(wspace) do |v|
+		#get list of vulns
+		if services.count > 0
+			services.each do |s|
+				if opts[:name]
+					nret = s.vulns.find_by_name(opts[:name])
+				else
+					nret = s.vulns
+				end
+				next if nret == nil
+				vulns << nret if nret.class == Msf::DBManager::Vuln
+				vulns |= nret if nret.class == Array
+			end
+		elsif hosts.count > 0
+			hosts.each do |h|
+				if opts[:name]
+					nret = h.vulns.find_by_name(opts[:name])
+				else
+					nret = h.vulns
+				end
+				next if nret == nil
+				vulns << nret if nret.class == Msf::DBManager::Vulns
+				vulns |= nret if nret.class == Array
+			end
+		else
+			nret = wspace.vulns
+			vulns << nret if nret.class == Msf::DBManager::Vulns
+			vulns |= nret if nret.class == Array
+		end
+
+		vulns.each do |v|
 			vuln = {}
 			reflist = v.refs.map { |r| r.name }
 			if(v.service)	
@@ -276,22 +343,25 @@ class Db < Base
 
                 host = @framework.db.get_host(opts)
 
-		services = nil
+		services = []
+		sret = nil
 
 		if(host && opts[:proto] && opts[:port])
-                	services = host.services.find_by_proto_and_port(proto, port)
+                	sret = host.services.find_by_proto_and_port(opts[:proto], opts[:port])
 		elsif(opts[:proto] && opts[:port])
 	                conditions = {}
                 	conditions[:state] = [ServiceState::Open] if opts[:up]
                 	conditions[:proto] = opts[:proto] if opts[:proto]
                 	conditions[:port] = opts[:port] if opts[:port]
                 	conditions[:name] = opts[:names] if opts[:names]
-			services = wspace.services.all(:conditions => conditions, :order => "hosts.address, port")
+			sret = wspace.services.all(:conditions => conditions, :order => "hosts.address, port")
 		else
-			services = host.services
+			sret = host.services
 		end
+		return ret if sret == nil
+		services << sret if sret.class == Msf::DBManager::Service
+		services |= sret if sret.class == Array
 
-		return ret if (not services)
 		
 		services.each do |s|
 			service = {}
@@ -322,20 +392,28 @@ class Db < Base
                 host = @framework.db.get_host(opts)
 
                 return ret if( not host)
-		notes = nil
-
+		notes = []
 		if(opts[:proto] && opts[:port])
-                	services = host.services.find_by_proto_and_port(proto, port)
-			notes = []
+			services = []
+                	nret = host.services.find_by_proto_and_port(opts[:proto], opts[:port])
+			return ret if nret == nil
+			services << nret if nret.class == Msf::DBManager::Service
+			services |= nret if nret.class == Array
+
 			services.each do |s|
-				notes |= s.notes
+				nret = nil
+				if opts[:ntype]
+					nret = s.notes.find_by_ntype(opts[:ntype])
+				else
+					nret = s.notes
+				end
+				next if nret == nil
+				notes << nret if nret.class == Msf::DBManager::Note
+				notes |= nret if nret.class == Array
 			end
 		else
 			notes = host.notes
 		end
-
-		return ret if (not notes)
-		
 		notes.each do |n|
 			note = {}
 			host = n.host
@@ -393,20 +471,91 @@ class Db < Base
 		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
 		opts = fixOpts(xopts)
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
+		if (opts[:host] or opts[:address]) and opts[:port] and opts[:proto]
+			addr = opts[:host] || opts[:address]
+			wspace = opts[:workspace] || @framework.db.workspace
+			host = wspace.hosts.find_by_address(addr)
+			service = host.services.find_by_proto_and_port(opts[:proto],opts[:port]) if host.services.count > 0
+			opts[:service] = service if service
+		end
+			
 		res = @framework.db.report_note(opts)
 		return { :result => 'success' } if(res)
 		{ :result => 'failed' }
 	end
 
-	def notes(token,wspace = nil)
+	def notes(token,xopts)
 		authenticate(token)
 		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
-		wspace = workspace(wspace)
-		raise ::XMLRPC::FaultException.new(404, "unknown workspace") if(not wspace)
+		opts = fixOpts(xopts)
+		wspace = workspace(opts[:workspace]) if opts[:workspace]
+		opts[:workspace] = wspace
+
 		ret = {}
 		ret[:notes] = []
+		hosts = []
+		services = []
+		notes = []
 
-		@framework.db.notes(wspace).each do |n|
+		# Get Matching Hosts
+		if opts[:addresses]
+			conditions = {}
+                	conditions[:address] = opts[:addresses] if opts[:addresses]
+                	hosts = wspace.hosts.all(:conditions => conditions, :order => :address)
+		elsif opts[:host] || opts[:address]
+                	host = @framework.db.get_host(opts)
+			hosts << host
+		end
+
+		#Get Matching Services
+		if opts[:host] || opts[:address] || opts[:addresses]
+			hosts.each do |host|
+				sret = nil
+				if(opts[:proto] && opts[:port])
+                			sret = host.services.find_by_proto_and_port(opts[:proto], opts[:port])
+				else
+                			sret = host.services
+				end
+				next if sret == nil
+				services << sret if sret.class == Msf::DBManager::Service
+				services |= sret if sret.class == Array
+			end
+		elsif opts[:port] && opts[:proto]
+			sret = wspace.services.find_by_proto_and_port(opts[:proto],opts[:port])
+			services << sret if sret.class == Msf::DBManager::Service
+			services |= sret if sret.class == Array
+		end
+		
+		#get list of notes
+		if services.count > 0
+			services.each do |s|
+				if opts[:ntype]
+					nret = s.notes.find_by_ntype(opts[:ntype])
+				else
+					nret = s.notes
+				end
+				next if nret == nil
+				notes << nret if nret.class == Msf::DBManager::Note
+				notes |= nret if nret.class == Array
+			end
+		elsif hosts.count > 0
+			hosts.each do |h|
+				if opts[:ntype]
+					nret = h.notes.find_by_ntype(opts[:ntype])
+				else
+					nret = h.notes
+				end
+				next if nret == nil
+				notes << nret if nret.class == Msf::DBManager::Note
+				notes |= nret if nret.class == Array
+			end
+		else
+			nret = wspace.notes
+			notes << nret if nret.class == Msf::DBManager::Note
+			notes |= nret if nret.class == Array
+		end
+
+		notes.each do |n|
 			note = {}
 			note[:time] = n.created_at.to_s
 			note[:host] = ""
@@ -672,11 +821,15 @@ class Db < Base
                 host = @framework.db.get_host(opts)
 
                 return ret if( not host)
-		vulns = nil
+		vulns = []
 
 		if(opts[:proto] && opts[:port])
-                	services = host.services.find_by_proto_and_port(proto, port)
-			notes = []
+			services = []
+                	sret = host.services.find_by_proto_and_port(opts[:proto], opts[:port])
+			return ret if sret == nil
+			services << sret if sret.class == Msf::DBManager::Service
+			services |= sret if sret.class == Array
+			
 			services.each do |s|
 				vulns |= s.vulns
 			end

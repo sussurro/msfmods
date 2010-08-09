@@ -3,114 +3,193 @@
 import xmlrpclib
 import sys
 import pprint
-from optparse import OptionParser
-import re
+import time
 
-IPV4_ADDRESS_REGEX = re.compile(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$')
-
-def is_address(s):
-	return IPV4_ADDRESS_REGEX.match(s) is not None
-	
 # default stuff -- could be made into options if you want
 SERVER_URL = "http://127.0.0.1:55553"
 USER = "msf"
 PASSWORD = "abc123"
 
-# parse command line options
-parser = OptionParser(usage="Usage: %prog [options] [HOSTS]")
-parser.add_option('-w', '--workspace', metavar='WORKSPACE', dest='workspace', help='specify workspace name to use', default=None)
-
-(options, args) = parser.parse_args()
-
-# Connect to server & authorize
 proxy = xmlrpclib.ServerProxy(SERVER_URL)
 
+
+#Login Check
+sys.stdout.write("Attempting Login: ")
 ret = proxy.auth.login(USER, PASSWORD)
 token = None
 if ret['result'] == 'success':
 	token = ret['token']
+	sys.stdout.write("OK\n")
 else:
-	print "Could not login\n"
+	sys.stdout.write("FAILED\n")
 	sys.exit()
+
+#Report Host Check
+sys.stdout.write("Attempting To add Hosts: ")
 extra_opts = {}	
-extra_opts['only_up'] = True
-extra_opts['addresses'] = ['192.168.1.20','192.168.1.21']
-extra_opts['port'] = 139
-extra_opts['proto'] = "tcp"
+extra_opts['host'] = "192.168.1.1"
+ret = proxy.db.report_host(token,extra_opts)
+if ret['result'] == 'success':
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+time.sleep(1)
+
+#Hosts command check
+sys.stdout.write("Verifying Add Through Hosts Command: ")
+extra_opts = {}	
+extra_opts['addresses'] = ['192.168.1.1']
 ret = proxy.db.hosts(token,extra_opts)
-hosts = ret['hosts']
-for h in hosts:
-	print h['address']
+if ret['hosts'] and len(ret['hosts']) == 1:
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+
+#get_host check
+sys.stdout.write("Verifying Add Through Get_Host check: ")
+extra_opts = {}	
+extra_opts['host'] = '192.168.1.1'
+ret = proxy.db.get_host(token,extra_opts)
+if ret['host'] and len(ret['host']) == 1:
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+
+#Add Service Check
+sys.stdout.write("Testing Report Service: ")
+extra_opts = {}	
+extra_opts['host'] = '192.168.1.1'
+extra_opts['port'] = 445
+extra_opts['proto'] = "tcp"
+ret = proxy.db.report_service(token,extra_opts)
+if ret['result'] == 'success':
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+time.sleep(1)
+
+#Check if service was added
+sys.stdout.write("Verifying Add Through Services cmd: ")
 ret = proxy.db.services(token,extra_opts)
-services = ret['services']
-for s in services:
-	print "------------------------------------------"
-	print s
-sys.exit()
+if ret['services'] and len(ret['services']) == 1:
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+#Check if service was added
+sys.stdout.write("Verifying Add Through Get_Service: ")
+ret = proxy.db.get_service(token,extra_opts)
+if ret['service'] and len(ret['service']) == 1:
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
 
-sys.exit()
-# Query all the data from the service
-# This queries basically everything even if you only ask for one server
-extra_args = []
-if options.workspace is not None:
-	extra_args = [options.workspace]
-ret = proxy.db.hosts(token, *extra_args)['hosts']
-services = proxy.db.services(token, *extra_args)['services']
-notes = proxy.db.notes(token, *extra_args)['notes']
+#Add a note:
+sys.stdout.write("Adding a new note to service: ")
+extra_opts['ntype'] = "tnote"
+extra_opts['data'] = { "ponies" : "puppies" }
+ret = proxy.db.report_note(token,extra_opts)
+if ret['result'] == 'success':
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+time.sleep(1)
 
-# Figure out what hosts to query -- include anything whose name or address is in the positional arguments
-hosts_to_list = hosts
+del extra_opts['data']
 
-args_set = set(arg.lower() for arg in args)
+#verify add
+sys.stdout.write("Verifying Add Through Notes cmd: ")
+ret = proxy.db.notes(token,extra_opts)
+if ret['notes'] and len(ret['notes']) == 1:
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
 
-if len(args) > 0:
-	hosts_to_list = []
-	for h in hosts:
-		if h['name'] and h['name'].lower() in args_set:
-			hosts_to_list.append(h)
-		elif h['address'] in args_set:
-			hosts_to_list.append(h)
-			
-# Collect services by host
-services_by_host = {}
-for service in services:
-	#print service
-	services_by_host.setdefault(service['host'], []).append(service)
-	
-# Collect notes by host
-notes_by_host = {}
-for note in notes:
-	if note['host']:
-		notes_by_host.setdefault(note['host'],[]).append(note)
+#verify add
+sys.stdout.write("Verifying Add Through get_note: ")
+ret = proxy.db.get_note(token,extra_opts)
+if ret['note'] and len(ret['note']) == 1:
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
 
-# Create a list of (host_addr_as_tuple, host)
-# where host_addr_as_tuple is e.g. (192,168,1,1)
-# for the purpose of sorting results
-hosts_split = [(tuple(int(x) for x in h['address'].split('.')), h) for h in hosts_to_list]
-hosts_split.sort()
+#test without a service, host only
+sys.stdout.write("Adding a new note to host: ")
+del extra_opts['port']
+del extra_opts['proto']
+extra_opts['host'] = '192.168.1.2'
+extra_opts['data'] = { "ponies" : "puppies" }
+ret = proxy.db.report_note(token,extra_opts)
+if ret['result'] == 'success':
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+time.sleep(1)
 
-# Print out all the results
-for host_tuple, h in hosts_split:
-	name = ''
-	if h['name']:
-		name = ' (%s)' % h['name']
-	print '%s%s' % (h['address'], name)
-	elements = []
-	for s in services_by_host.get(h['address'], []):
-		info = s['info'].strip()
-		if info:
-			info = '(%s)'%info
-		s = '  Port %s %s: %s %s' % (s['port'],
-								s['proto'].upper(),
-								s['name'],
-								info)
-		elements.append(s)
-	for n in notes_by_host.get(h['address'], []):
-		s = '  Note: %s =\n    %s' % (n['type'], n['data'])
-		elements.append(s)
-	if elements:
-		for e in elements:
-			print e
-	else:
-		print '(No notes or ports)'
-	print
+del extra_opts['data']
+#verify add
+sys.stdout.write("Verifying Add Through Notes cmd: ")
+ret = proxy.db.notes(token,extra_opts)
+if ret['notes'] and len(ret['notes']) == 1:
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+
+#verify add
+sys.stdout.write("Verifying Add Through get_note: ")
+ret = proxy.db.get_note(token,extra_opts)
+if ret['note'] and len(ret['note']) == 1:
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+
+#Add Vuln check
+sys.stdout.write("Testing Report Vuln: ")
+extra_opts = {}	
+extra_opts['host'] = '192.168.1.1'
+extra_opts['port'] = 445
+extra_opts['proto'] = "tcp"
+extra_opts['refs'] = ['SUS_1234','SUS_5678']
+extra_opts['info'] = "This is a test vulnerability"
+extra_opts['name'] = "TestVuln1"
+
+ret = proxy.db.report_vuln(token,extra_opts)
+if ret['result'] == 'success':
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+time.sleep(1)
+
+
+del extra_opts['info']
+del extra_opts['refs']
+
+#verify add
+sys.stdout.write("Verifying Add Through vulns: ")
+ret = proxy.db.vulns(token,extra_opts)
+if ret['vulns'] and len(ret['vulns']) == 1:
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+
+#verify add
+sys.stdout.write("Verifying Add Through get_vuln: ")
+ret = proxy.db.get_vuln(token,extra_opts)
+if ret['vuln'] and len(ret['vuln']) == 1:
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
