@@ -1,7 +1,6 @@
-require 'pp'
-
 module Msf
 module RPC
+require 'pp'
 class Db < Base
 
 	def db 
@@ -41,15 +40,21 @@ class Db < Base
 		res
 	end
 
-	def hosts(token, wspace = nil, only_up = false, host_search = nil)
+	def hosts(token,xopts)
 		authenticate(token)
 		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
-		wspace = workspace(wspace)
-		raise ::XMLRPC::FaultException.new(404, "unknown workspace") if(not wspace)
+
+		opts = fixOpts(xopts)
+
+		conditions = {}
+                conditions[:state] = [Msf::HostState::Alive, Msf::HostState::Unknown] if opts[:only_up]
+                conditions[:address] = opts[:addresses] if opts[:addresses]
+
+		wspace = workspace(opts[:workspace])
+
 		ret = {}
 		ret[:hosts] = []
-	
-		@framework.db.hosts(wspace,only_up,host_search).each do |h|
+                wspace.hosts.all(:conditions => conditions, :order => :address).each do |h|
 			host = {}
 			host[:created_at] = h.created_at.to_s
 			host[:address] = h.address.to_s
@@ -68,11 +73,66 @@ class Db < Base
 		end
 		ret
 	end
-	
-	def services(token, wspace = nil, only_up = false, proto = nil, addresses = nil, ports = nil, names = nil)
+
+	def services(token, xopts)
 		authenticate(token)
 		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
-		wspace = workspace(wspace)
+
+		opts = fixOpts(xopts)
+		wspace = workspace(opts[:workspace])
+		opts[:workspace] = wspace if opts[:workspace]
+		hosts = []
+
+		if opts[:addresses]
+			conditions = {}
+                	conditions[:address] = opts[:addresses] if opts[:addresses]
+                	hosts = wspace.hosts.all(:conditions => conditions, :order => :address)
+		elsif opts[:host] || opts[:address]
+                	host = @framework.db.get_host(opts)
+			hosts << host
+		end
+
+		ret = {}
+		ret[:services] = []
+
+                a = @framework.db.get_host(opts)
+
+		services = []
+		if opts[:host] || opts[:address] || opts[:addresses]
+			hosts.each do |host|
+				if(opts[:proto] && opts[:port])
+                			services |= host.services.find_by_proto_and_port(opts[:proto], opts[:port])
+				else
+                			services |= host.services
+				end
+			end
+		else
+			services = wspace.services
+		end
+
+		return ret if (not services)
+		
+		services.each do |s|
+			service = {}
+			host = s.host
+			service[:host] = host.address || host.address6 || "unknown"
+			service[:created_at] = s[:created_at].to_s
+			service[:updated_at] = s[:updated_at].to_s
+			service[:port] = s[:port]
+			service[:proto] = s[:proto].to_s
+			service[:state] = s[:state].to_s
+			service[:name] = s[:name].to_s
+			service[:info] = s[:info].to_s
+			ret[:services] << service
+		end
+		ret
+	end
+
+
+	def services2(token, wspace = nil, only_up = false, proto = nil, addresses = nil, ports = nil, names = nil)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		wspace = workspace(xopts[:workspace])
 		raise ::XMLRPC::FaultException.new(404, "unknown workspace") if(not wspace)
 		ret = {}
 		ret[:services] = []
@@ -186,10 +246,8 @@ class Db < Base
 		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
 		opts = fixOpts(xopts)
 		opts[:workspace] = workspace(opts[:workspace]) if opts[:workspace]
-		pp opts
 
 		res = @framework.db.report_host(opts)
-		pp res
 		return { :result => 'success' } if(res)
 		{ :result => 'failed' }
 		
