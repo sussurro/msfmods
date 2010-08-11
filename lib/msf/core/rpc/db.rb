@@ -1,8 +1,8 @@
 module Msf
 module RPC
-require 'pp'
 class Db < Base
 
+  private
 	def db 
 		@framework.db.active
 	end
@@ -21,7 +21,7 @@ class Db < Base
 		end
 		newopts
 	end
-			
+
 
 	def workspaces(token)
 		authenticate(token)
@@ -39,6 +39,56 @@ class Db < Base
 		end
 		res
 	end
+
+	def opts2Hosts(opts)
+		wspace = workspace(opts[:workspace]) 
+		hosts  = []
+		if opts[:host] or opts[:address]
+			host = opts[:host] || opts[:address]
+			hent = wspace.hosts.find_by_address(host)
+			return hosts if hent == nil
+			hosts << hent if hent.class == Msf::DBManager::Host
+			hosts |= hent if hent.class == Array
+		elsif opts[:addresses]
+			return hosts if opts[:addresses].class != Array
+			conditions = {}
+			conditions[:address] = opts[:addresses]
+			hent = wspace.hosts.all(:conditions => conditions)
+			hosts |= hent if hent.class == Array
+		end
+		return hosts
+	end
+
+	def opts2Services(hosts,opts)
+		wspace = workspace(opts[:workspace]) 
+		services = []
+		if opts[:host] or opts[:address] or opts[:addresses]
+			return services if hosts.count < 1
+			hosts.each do |h|
+				if opts[:port] or opts[:proto]
+					conditions = {}
+					conditions[:port] = opts[:port] if opts[:port]
+					conditions[:proto] = opts[:proto] if opts[:proto]
+					sret = h.services.all(:conditions => conditions)
+					next if sret == nil
+					services |= sret if sret.class == Array
+					services << sret if sret.class == Msf::DBManager::Service
+				else
+					services |= h.services
+				end
+			end
+		elsif opts[:port] or opts[:proto]
+			conditions = {}
+			conditions[:port] = opts[:port] if opts[:port]
+			conditions[:proto] = opts[:proto] if opts[:proto]
+			sret = wspace.services.all(:conditions => conditions)
+			services |= sret if sret.class == Array
+			services << sret if sret.class == Msf::DBManager::Service
+		end
+		return services
+	end
+
+  public
 
 	def hosts(token,xopts)
 		authenticate(token)
@@ -132,31 +182,6 @@ class Db < Base
 		ret
 	end
 
-
-	def services2(token, wspace = nil, only_up = false, proto = nil, addresses = nil, ports = nil, names = nil)
-		authenticate(token)
-		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
-		wspace = workspace(xopts[:workspace])
-		raise ::XMLRPC::FaultException.new(404, "unknown workspace") if(not wspace)
-		ret = {}
-		ret[:services] = []
-
-
-		@framework.db.services(wspace,only_up,proto,addresses,ports,names).each do |s|
-			service = {}
-			host = s.host
-			service[:host] = host.address || host.address6 || "unknown"
-			service[:created_at] = s[:created_at].to_s
-			service[:updated_at] = s[:updated_at].to_s
-			service[:port] = s[:port]
-			service[:proto] = s[:proto].to_s
-			service[:state] = s[:state].to_s
-			service[:name] = s[:name].to_s
-			service[:info] = s[:info].to_s
-			ret[:services] << service
-		end
-		ret
-	end	
 
 	def vulns(token,xopts)
 		authenticate(token)
@@ -597,28 +622,237 @@ class Db < Base
 		ret
 	end
 
-	#def get_vuln(wspace, host, service, name, data='')
-
 	def get_ref(token,name)
 		authenticate(token)
 		return @framework.db.get_ref(name)
 	end
 
-	def del_host(token,wspace = nil,address = nil , comm='')
+	def del_vuln(token,xopts)
 		authenticate(token)
 		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
-		wspace = workspace(wspace)
-		@framework.db.del_host(wspace,address,comm)
-		return { :result => 'success' } 
-		
+		opts = fixOpts(xopts)
+		wspace = workspace(opts[:workspace]) 
+		hosts  = []
+		services = []
+		vulns = []
+			
+		if opts[:host] or opts[:address] or opts[:addresses]
+			hosts = opts2Hosts(opts)
+		end
+
+		if opts[:port] or opts[:proto]
+			if opts[:host] or opts[:address] or opts[:addresses]
+				services = opts2Services(hosts,opts)
+			else
+				services = opts2Services([],opts)
+			end
+		end
+
+		if opts[:port] or opts[:proto]
+			services.each do |s|
+				vret = nil
+				if opts[:name]
+					vret = s.vulns.find_by_name(opts[:name])
+				else
+					vret = s.vulns
+				end
+				next if vret == nil
+				vulns << vret if vret.class == Msf::DBManager::Vuln
+				votes |= vret if vret.class == Array
+			end
+		elsif opts[:address] or opts[:host] or opts[:addresses]
+			hosts.each do |h|
+				vret = nil
+				if opts[:name]
+					vret = h.vulns.find_by_name(opts[:name])
+				else
+					vret = h.vulns
+				end
+				next if vret == nil
+				vulns << vret if vret.class == Msf::DBManager::Vuln
+				vulns |= vret if vret.class == Array
+			end
+		else
+			vret = nil
+			if opts[:name]
+				vret = wspace.vulns.find_by_name(opts[:name])
+			else
+				vret = wspace.vulns
+			end
+			next if vret == nil
+			votes << vret if vret.class == Msf::DBManager::Vuln
+			votes |= vret if vret.class == Array
+		end
+
+		deleted = []
+		vulns.each do |v|
+			dent = {}
+			dent[:address] = v.host.address.to_s if v.host
+			dent[:port] = v.service.port if v.service
+			dent[:proto] = v.service.proto if v.service
+			dent[:name] = v.name
+			deleted << dent
+			v.destroy	
+		end
+			
+		return { :result => 'success', :deleted => deleted } 
 	end
 
-	def del_service(token,wspace = nil, address = nil, proto = nil , port = nil, comm='')
+	def del_note(token,xopts)
 		authenticate(token)
 		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
-		wspace = workspace(wspace)
-		@framework.db.del_service(wspace,address,proto,port,comm)
-		return { :result => 'success' } 
+		opts = fixOpts(xopts)
+		wspace = workspace(opts[:workspace]) 
+		hosts  = []
+		services = []
+		notes = []
+			
+		if opts[:host] or opts[:address] or opts[:addresses]
+			hosts = opts2Hosts(opts)
+		end
+
+		if opts[:port] or opts[:proto]
+			if opts[:host] or opts[:address] or opts[:addresses]
+				services = opts2Services(hosts,opts)
+			else
+				services = opts2Services([],opts)
+			end
+		end
+
+		if opts[:port] or opts[:proto]
+			services.each do |s|
+				nret = nil
+				if opts[:ntype]
+					nret = s.notes.find_by_ntype(opts[:ntype])
+				else
+					nret = s.notes
+				end
+				next if nret == nil
+				notes << nret if nret.class == Msf::DBManager::Note
+				notes |= nret if nret.class == Array
+			end
+		elsif opts[:address] or opts[:host] or opts[:addresses]
+			hosts.each do |h|
+				nret = nil
+				if opts[:ntype]
+					nret = h.notes.find_by_ntype(opts[:ntype])
+				else
+					nret = h.notes
+				end
+				next if nret == nil
+				notes << nret if nret.class == Msf::DBManager::Note
+				notes |= nret if nret.class == Array
+			end
+		else
+			nret = nil
+			if opts[:ntype]
+				nret = wspace.notes.find_by_ntype(opts[:ntype])
+			else
+				nret = wspace.notes
+			end
+			next if nret == nil
+			notes << nret if nret.class == Msf::DBManager::Note
+			notes |= nret if nret.class == Array
+		end
+		deleted = []
+		notes.each do |n|
+			dent = {}
+			dent[:address] = n.host.address.to_s if n.host
+			dent[:port] = n.service.port if n.service
+			dent[:proto] = n.service.proto if n.service
+			dent[:ntype] = n.ntype
+			deleted << dent
+			n.destroy	
+		end
+			
+		return { :result => 'success', :deleted => deleted } 
+	end
+
+	def del_service(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		wspace = workspace(opts[:workspace]) 
+		hosts  = []
+		services = []
+		if opts[:host] or opts[:address]
+			host = opts[:host] || opts[:address]
+			hent = wspace.hosts.find_by_address(host)
+			return { :result => 'failed' } if hent == nil or hent.class != Msf::DBManager::Host
+			hosts << hent
+		elsif opts[:addresses]
+			return { :result => 'failed' } if opts[:addresses].class != Array
+			conditions = { :address => opts[:addresses] }
+			hent = wspace.hosts.all(:conditions => conditions)
+			return { :result => 'failed' } if hent == nil
+			hosts |= hent if hent.class == Array
+			hosts << hent if hent.class == Msf::DBManager::Host
+		end
+		if opts[:addresses] or opts[:address] or opts[:host]
+			hosts.each do |h|
+				sret = nil
+				if opts[:port] or opts[:proto]
+					conditions = {}
+					conditions[:port] = opts[:port] if opts[:port]
+					conditions[:proto] = opts[:proto] if opts[:proto]
+					sret = h.services.all(:conditions => conditions)
+					next if sret == nil
+					services << sret if sret.class == Msf::DBManager::Service
+					services |= sret if sret.class == Array
+				else
+					services |= h.services
+				end
+			end
+		elsif opts[:port] or opts[:proto]
+			conditions = {}
+			conditions[:port] = opts[:port] if opts[:port]
+			conditions[:proto] = opts[:proto] if opts[:proto]
+			sret = wspace.services.all(:conditions => conditions)
+			services << sret if sret and sret.class == Msf::DBManager::Service
+			services |= sret if sret and sret.class == Array
+		end
+					
+				
+				
+		deleted = []
+		services.each do |s|
+			dent = {}
+			dent[:address] = s.host.address.to_s
+			dent[:port] = s.port
+			dent[:proto] = s.proto
+			deleted << dent
+			s.destroy	
+		end
+			
+		return { :result => 'success', :deleted => deleted } 
+	end
+
+	def del_host(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+		opts = fixOpts(xopts)
+		wspace = workspace(opts[:workspace]) 
+		hosts  = []
+		if opts[:host] or opts[:address]
+			host = opts[:host] || opts[:address]
+			hent = wspace.hosts.find_by_address(host)
+			return { :result => 'failed' } if hent == nil or hent.class != Msf::DBManager::Host
+			hosts << hent
+		elsif opts[:addresses]
+			return { :result => 'failed' } if opts[:addresses].class != Array
+			conditions = { :address => opts[:addresses] }
+			hent = wspace.hosts.all(:conditions => conditions)
+			return { :result => 'failed' } if hent == nil
+			hosts |= hent if hent.class == Array
+			hosts << hent if hent.class == Msf::DBManager::Host
+		end
+		deleted = []
+		hosts.each do |h|
+			deleted << h.address.to_s
+			h.destroy	
+		end
+			
+		return { :result => 'success', :deleted => deleted } 
 	end
 
 
@@ -858,6 +1092,92 @@ class Db < Base
 			ret[:vuln] << vuln
 		end
 		ret
+	end
+	def clients(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+
+		opts = fixOpts(xopts)
+		wspace = workspace(opts[:workspace]) 
+		hosts = []
+		clients = []
+		ret = {}
+		ret[:clients] = []
+
+		if opts[:host] or opts[:address] or opts[:addresses]
+			hosts = opts2Hosts(opts)
+		else
+			hosts = wspace.hosts
+		end
+
+		hosts.each do |h|
+			cret = nil
+			if opts[:ua_name] or opts[:ua_ver]	
+				conditions = {}
+				conditions[:ua_name] = opts[:ua_name] if opts[:ua_name]
+				conditions[:ua_ver] = opts[:ua_ver] if opts[:ua_ver]
+				cret = h.clients.all(:conditions => conditions)
+			else
+				cret = h.clients
+			end
+			next if cret == nil
+			clients << cret if cret.class == Msf::DBManager::Client
+			clients |= cret if cret.class == Array
+		end
+		clients.each do |c|
+			client = {}
+			client[:host] = c.host.address.to_s if c.host
+			client[:ua_string] = c.ua_string
+			client[:ua_name] = c.ua_name
+			client[:ua_ver] = c.ua_ver
+			client[:created_at] = c.created_at.to_s
+			client[:updated_at] = c.updated_at.to_s
+			ret[:clients] << client
+		end
+		ret
+	end
+
+	def del_client(token,xopts)
+		authenticate(token)
+		raise ::XMLRPC::FaultException.new(404, "database not loaded") if(not db)
+
+		opts = fixOpts(xopts)
+		wspace = workspace(opts[:workspace]) 
+		hosts = []
+		clients = []
+
+		if opts[:host] or opts[:address] or opts[:addresses]
+			hosts = opts2Hosts(opts)
+		else
+			hosts = wspace.hosts
+		end
+
+		hosts.each do |h|
+			cret = nil
+			if opts[:ua_name] or opts[:ua_ver]	
+				conditions = {}
+				conditions[:ua_name] = opts[:ua_name] if opts[:ua_name]
+				conditions[:ua_ver] = opts[:ua_ver] if opts[:ua_ver]
+				cret = h.clients.all(:conditions => conditions)
+			else
+				cret = h.clients
+			end
+			next if cret == nil
+			clients << cret if cret.class == Msf::DBManager::Client
+			clients |= cret if cret.class == Array
+		end
+
+		deleted = []
+		clients.each do |c|
+			dent = {}
+			dent[:address] = c.host.address.to_s
+			dent[:ua_string] = c.ua_string
+			deleted << dent
+			c.destroy	
+		end
+
+		return { :result => 'success', :deleted => deleted } 
+			
 	end
 
 end

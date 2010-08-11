@@ -193,3 +193,94 @@ if ret['vuln'] and len(ret['vuln']) == 1:
 else:
 	sys.stdout.write("FAILED\n")
 	sys.exit()
+
+#Add Client Check
+sys.stdout.write("Testing Report Client: ")
+extra_opts = {}	
+extra_opts['host'] = '192.168.1.1'
+extra_opts['ua_string'] = "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)"
+extra_opts['ua_name'] = 'Internet Explorer'
+extra_opts['ua_ver'] = '6.0'
+
+ret = proxy.db.report_client(token,extra_opts)
+if ret['result'] == 'success':
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+time.sleep(1)
+
+#verify add
+sys.stdout.write("Verifying Add Through clients: ")
+ret = proxy.db.clients(token,extra_opts)
+if ret['clients'] and len(ret['clients']) == 1:
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+
+#verify add
+sys.stdout.write("Verifying Add Through get_client: ")
+ret = proxy.db.get_client(token,extra_opts)
+if ret['client'] and len(ret['client']) == 1:
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+
+sys.stdout.write("Deleting client: ")
+ret = proxy.db.del_client(token,extra_opts)
+if ret['result'] == 'success':
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+sys.stdout.write("Attempting to delete note: ")
+extra_opts = {}	
+extra_opts['host'] = '192.168.1.1'
+extra_opts['port'] = 445
+extra_opts['proto'] = "tcp"
+extra_opts['ntype'] = "tnote"
+ret = proxy.db.del_note(token,extra_opts)
+if ret['result'] == 'success':
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+sys.stdout.write("Attempting to delete vuln: ")
+del extra_opts['ntype']
+extra_opts['name'] = "TestVuln1"
+ret = proxy.db.del_vuln(token,extra_opts)
+if ret['result'] == 'success':
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+sys.stdout.write("Attempting to delete services...: ")
+ret = proxy.db.del_service(token,extra_opts)
+if ret['result'] == 'success':
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+
+sys.stdout.write("Attempting to delete hosts...: ")
+extra_opts = {}	
+extra_opts['addresses'] = ['192.168.1.1','192.168.1.2']
+ret = proxy.db.del_host(token,extra_opts)
+if ret['result'] == 'success':
+	sys.stdout.write("OK\n")
+else:
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+
+sys.stdout.write("Verifying what happens in vegas stays in vegas...: ")
+extra_opts = {}	
+extra_opts['addresses'] = ['192.168.1.1','192.168.1.2']
+try:
+	ret = proxy.db.fixOpts(extra_opts)
+	sys.stdout.write("FAILED\n")
+	sys.exit()
+except:
+	sys.stdout.write("OK\n")
+
