@@ -60,7 +60,7 @@ print_status("New session on #{host}:#{port}...")
 logs = ::File.join(Msf::Config.config_directory, 'logs', 'screenshot', host + "_" + Time.now.strftime("%Y%m%d.%M%S")+sprintf("%.5d",rand(100000)) )
 
 # Create full path to output file
-outfile = ::File.join(Msf::Config.install_root,file)
+outfile = ::File.join(logs,file)
 
 # Create the log directory
 ::FileUtils.mkdir_p(logs)
